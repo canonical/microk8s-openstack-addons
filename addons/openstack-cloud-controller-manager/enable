@@ -1,0 +1,132 @@
+#!/usr/bin/env python3
+
+import subprocess
+import click
+import os
+
+
+KUBECTL = os.path.expandvars("$SNAP/microk8s-kubectl.wrapper")
+HELM = os.path.expandvars("$SNAP/microk8s-helm3.wrapper")
+MICROK8S_STATUS = os.path.expandvars("$SNAP/microk8s-status.wrapper")
+MICROK8S_ENABLE = os.path.expandvars("$SNAP/microk8s-enable.wrapper")
+NAMESPACE = "occm"
+
+
+def ensure_addon(addon_name: str):
+    click.echo("Checking for addon {}...".format(addon_name))
+    output = subprocess.check_output([MICROK8S_STATUS, "-a", addon_name]).decode()
+    if "enabled" not in output:
+        p = subprocess.run([MICROK8S_ENABLE, addon_name])
+        if p.returncode != 0:
+            click.echo("Failed to enable addon {}".format(addon_name), err=True)
+            sys.exit(1)
+
+    click.echo("Checking for addon {}... OK".format(addon_name))
+
+
+def set_external_provider():
+    subprocess.check_call(
+        [
+            os.path.expandvars("$SNAP/actions/common/utils.sh"),
+            "refresh_opt_in_config",
+            "cloud-provider",
+            "external",
+            "kubelet",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+
+def taint_nodes():
+    nodes = (
+        subprocess.run(
+            [
+                KUBECTL,
+                "get",
+                "node",
+                "-o",
+                "jsonpath='{.items[*].metadata.name}'",
+            ],
+            stdout=subprocess.PIPE,
+        )
+        .stdout.decode()
+        .strip("'")
+        .split()
+    )
+
+    for node in nodes:
+        subprocess.run(
+            [
+                KUBECTL,
+                "taint",
+                "node",
+                node,
+                "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule",
+            ],
+        )
+
+
+@click.command()
+@click.option("--rbac-addon", default="core/rbac")
+@click.option("--helm3-addon", default="core/helm3")
+@click.option("--values", required=True)
+@click.option("--skip-taint-nodes", default=False)
+def main(
+    rbac_addon: str,
+    helm3_addon: str,
+    values: str,
+    skip_taint_nodes: bool,
+):
+    """
+    Enable the openstack-cloud-controller-manager addon.
+    """
+    if rbac_addon:
+        ensure_addon(rbac_addon)
+
+    if helm3_addon:
+        ensure_addon(helm3_addon)
+
+    set_external_provider()
+
+    if not skip_taint_nodes:
+        taint_nodes()
+
+    subprocess.run(
+        [
+            HELM,
+            "repo",
+            "add",
+            "cpo",
+            "https://kubernetes.github.io/cloud-provider-openstack",
+        ]
+    )
+    subprocess.run([HELM, "repo", "update"])
+
+    click.echo(f"Creating {NAMESPACE} namespace...")
+    subprocess.run(f"{KUBECTL} create namespace {NAMESPACE}".split())
+
+    subprocess.run(
+        [
+            HELM,
+            "install",
+            "-n",
+            NAMESPACE,
+            "occm",
+            "cpo/openstack-cloud-controller-manager",
+            "--values",
+            values,
+        ],
+        stdout=subprocess.PIPE
+    )
+
+    click.echo(
+        f"""
+=============================================================
+Cloud Provider Openstack has been installed and will be available shortly.
+"""
+    )
+
+
+if __name__ == "__main__":
+    main()

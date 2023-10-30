@@ -1,0 +1,42 @@
+name: Lint
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  flake8:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install tox
+        run: python3 -m pip install tox
+      - name: Run lint-flake8
+        run: tox run -e lint-flake8
+  yamllint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install tox
+        run: python3 -m pip install tox
+      - name: Run lint-yamllint
+        run: tox run -e lint-yamllint
+  black:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Install tox
+        run: python3 -m pip install tox
+      - name: Run lint-black
+        run: tox run -e lint-black

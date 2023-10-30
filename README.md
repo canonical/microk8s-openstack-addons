@@ -1,24 +1,18 @@
-## Your repository
+## Microk8s Openstack Addons
 
-A MicroK8s addons repository should have a comprehensive description of the addons collection it includes. The current template repository contains two addons:
-
-  * bash-hello-k8s, a demo addon implemented in bash
-  * python-hello-k8s, a python based demo addon
-
-The purpose of the addons should be clearly stated. In this demo repository our goal is to demonstrate how addons are structured so as to can guide you in your first steps as an addons author.
-
+This repository is the home of Microk8s addons specifically for usage with Openstack.
 
 ### How to use an addons repository
 
 #### Adding repositories
 3rd party addons repositories are supported on MicroK8s v1.24 and onwards. To add a repository on an already installed MicroK8s you have to use the `microk8s addons repo` command and provide a user friendly repo name, the path to the repository and optionally a branch within the repository. For example:
 ```
-microk8s addons repo add demo https://github.com/canonical/microk8s-addons-repo-template --reference main
+microk8s addons repo add openstack https://github.com/canonical/microk8s-openstack-addons --reference main
 ```
 
 As long as you have a local copy of a repository and that repository is also a git one in can also be added to a MicroK8s installation with:
 ```
-microk8s.addons repo add demo ./microk8s-addons-repo-template
+microk8s.addons repo add openstack ./microk8s-openstack-addons
 ```
 
 #### Enabling/disabling addons
@@ -26,21 +20,21 @@ microk8s.addons repo add demo ./microk8s-addons-repo-template
 The addons of all repositories are shown in `microk8s status` along with the repo they came from. `microk8s enable` and `microk8s disable` are used to enable and disable the addons respectively. The repo name can be used to disambiguate between addons with the same name. For example:
 
 ```
-microk8s enable demo/bash-hello-k8s
+microk8s enable openstack/<addon>
 ```
 
 #### Refreshing repositories
 
 Adding a repository to MicroK8s (via `mcirok8s addons repo add`) creates a copy of the repository under `$SNAP_COMMON/addons` (typically under `/var/snap/microk8s/common/addons/`). Authorized users are able to edit the addons to match their need. In case the upstream repository changes and you need to pull in any updates with:
 ```
-microk8s addons repo update <repo_name>
+microk8s addons repo update openstack
 ```
 
 #### Removing repositories
 
 Removing repositories is done with:
 ```
-microk8s addons repo remove <repo_name>
+microk8s addons repo remove openstack
 ```
 
 
