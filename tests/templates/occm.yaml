@@ -1,0 +1,20 @@
+cloudConfig:
+  global:
+    auth-url: http://keystone-url
+    application-credential-id: <cred-id>
+    application-credential-secret: <cred-secret>
+    region: RegionOne
+    tenant-name: <user-id>
+    ca-cert: /path/to/rootCA.crt
+  loadBalancer:
+    enabled: true
+    lb-provider: ovn
+    lb-method: SOURCE_IP_PORT
+    manage-security-groups: true
+  networking:
+    public-network-name: ext-net
+    internal-network-name: ubuntu-net
+tolerations:
+  - key: node.cloudprovider.kubernetes.io/uninitialized
+    value: "true"
+    effect: NoSchedule

@@ -1,7 +1,19 @@
-import datetime
+import os.path
+from datetime import datetime, timedelta
 import time
 import yaml
-from subprocess import check_output, CalledProcessError
+import platform
+from subprocess import check_output, CalledProcessError, check_call, run, PIPE
+
+
+arch_translate = {"aarch64": "arm64", "x86_64": "amd64"}
+
+
+def get_arch():
+    """
+    Returns the architecture we are running on
+    """
+    return arch_translate[platform.machine()]
 
 
 def run_until_success(cmd, timeout_insec=60, err_out=None):
@@ -15,17 +27,23 @@ def run_until_success(cmd, timeout_insec=60, err_out=None):
     Returns: The string output of the command
 
     """
-    deadline = datetime.datetime.now() + datetime.timedelta(seconds=timeout_insec)
+    deadline = datetime.now() + timedelta(seconds=timeout_insec)
     while True:
         try:
-            output = check_output(cmd.split()).strip().decode("utf8")
+            output = (
+                check_output(
+                    cmd.split(),
+                )
+                .strip()
+                .decode("utf8")
+            )
             return output.replace("\\n", "\n")
         except CalledProcessError as err:
             output = err.output.strip().decode("utf8").replace("\\n", "\n")
             print(output)
             if output == err_out:
                 return output
-            if datetime.datetime.now() > deadline:
+            if datetime.now() > deadline:
                 raise
             print("Retrying {}".format(cmd))
             time.sleep(3)
@@ -44,6 +62,22 @@ def kubectl(cmd, timeout_insec=300, err_out=None):
     """
     cmd = "/snap/bin/microk8s.kubectl " + cmd
     return run_until_success(cmd, timeout_insec, err_out)
+
+
+def docker(cmd):
+    """
+    Do a docker <cmd>
+    Args:
+        cmd: left part of docker <left_part> command
+
+    Returns: the docker response in a string
+
+    """
+    docker_bin = "/usr/bin/docker"
+    if os.path.isfile("/snap/bin/microk8s.docker"):
+        docker_bin = "/snap/bin/microk8s.docker"
+    cmd = docker_bin + " " + cmd
+    return run_until_success(cmd)
 
 
 def kubectl_get(target, timeout_insec=300):
@@ -65,12 +99,12 @@ def wait_for_pod_state(
     pod, namespace, desired_state, desired_reason=None, label=None, timeout_insec=600
 ):
     """
-    Wait for a a pod state. If you do not specify a pod name and you set instead a label
-    only the first pod will be checked.
+    Wait for a a pod state. If you do not specify a pod name and you
+    set instead a label only the first pod will be checked.
     """
-    deadline = datetime.datetime.now() + datetime.timedelta(seconds=timeout_insec)
+    deadline = datetime.now() + timedelta(seconds=timeout_insec)
     while True:
-        if datetime.datetime.now() > deadline:
+        if datetime.now() > deadline:
             raise TimeoutError(
                 "Pod {} not in {} after {} seconds.".format(
                     pod, desired_state, timeout_insec
@@ -99,9 +133,54 @@ def wait_for_pod_state(
         time.sleep(3)
 
 
-def microk8s_enable(addon, timeout_insec=300):
+def wait_for_installation(cluster_nodes=1, timeout_insec=360):
     """
-    Disable an addon
+    Wait for kubernetes service to appear.
+    """
+    while True:
+        cmd = "svc kubernetes"
+        data = kubectl_get(cmd, timeout_insec)
+        service = data["metadata"]["name"]
+        if "kubernetes" in service:
+            break
+        else:
+            time.sleep(3)
+
+    while True:
+        cmd = "get no"
+        nodes = kubectl(cmd, timeout_insec)
+        if nodes.count(" Ready") == cluster_nodes:
+            break
+        else:
+            time.sleep(3)
+
+    # Allow rest of the services to come up
+    time.sleep(30)
+
+
+def wait_for_namespace_termination(namespace, timeout_insec=360):
+    """
+    Wait for the termination of the provided namespace.
+    """
+
+    print("Waiting for namespace {} to be removed".format(namespace))
+    deadline = datetime.now() + timedelta(seconds=timeout_insec)
+    while True:
+        try:
+            cmd = "/snap/bin/microk8s.kubectl get ns {}".format(namespace)
+            check_output(cmd.split()).strip().decode("utf8")
+            print("Waiting...")
+        except CalledProcessError:
+            if datetime.now() > deadline:
+                raise
+            else:
+                return
+        time.sleep(10)
+
+
+def microk8s_enable(addon, timeout_insec=300, optional_args=None):
+    """
+    Enable an addon
 
     Args:
         addon: name of the addon
@@ -115,13 +194,13 @@ def microk8s_enable(addon, timeout_insec=300):
             print("Not a cuda capable system. Will not test gpu addon")
             raise CalledProcessError(1, "Nothing to do for gpu")
 
-    cmd = "/snap/bin/microk8s.enable {}".format(addon)
+    cmd = "/snap/bin/microk8s.enable {} {}".format(addon, optional_args or "")
     return run_until_success(cmd, timeout_insec)
 
 
 def microk8s_disable(addon):
     """
-    Enable an addon
+    Disable an addon
 
     Args:
         addon: name of the addon
@@ -129,3 +208,70 @@ def microk8s_disable(addon):
     """
     cmd = "/snap/bin/microk8s.disable {}".format(addon)
     return run_until_success(cmd, timeout_insec=300)
+
+
+def microk8s_clustering_capable():
+    """
+    Are we in a clustering capable microk8s?
+    """
+    return os.path.isfile("/snap/bin/microk8s.join")
+
+
+def microk8s_reset(cluster_nodes=1):
+    """
+    Call microk8s reset
+    """
+    cmd = "sudo /snap/bin/microk8s.reset"
+    run_until_success(cmd, timeout_insec=300)
+    wait_for_installation(cluster_nodes)
+
+
+def update_yaml_with_arch(manifest_file):
+    """
+    Updates any $ARCH entry with the architecture in the manifest
+
+    """
+    arch = arch_translate[platform.machine()]
+    with open(manifest_file) as f:
+        s = f.read()
+
+    with open(manifest_file, "w") as f:
+        s = s.replace("$ARCH", arch)
+        f.write(s)
+
+
+def is_container():
+    """
+    Returns: True if the deployment is in a VM/container.
+
+    """
+    try:
+        if os.path.isdir("/run/systemd/system"):
+            container = check_output("sudo systemd-detect-virt --container".split())
+            print("Tests are running in {}".format(container))
+            return True
+    except CalledProcessError:
+        print("systemd-detect-virt did not detect a container")
+
+    if os.path.exists("/run/container_type"):
+        return True
+
+    try:
+        check_call(
+            "sudo grep -E (lxc|hypervisor) " + "/proc/1/environ /proc/cpuinfo".split()
+        )
+        print("Tests are running in an undetectable container")
+        return True
+    except CalledProcessError:
+        print("no indication of a container in /proc")
+
+    return False
+
+
+def addon_enabled(addon):
+    """
+    Return bool of addon status
+    """
+    status = run(f"/snap/bin/microk8s.status -a {addon}", stdout=PIPE, shell=True)
+    enabled = True if status.stdout == b"enabled\n" else False
+    return enabled
