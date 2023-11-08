@@ -3,7 +3,6 @@
 import subprocess
 import click
 import os
-import tempfile
 
 
 KUBECTL = os.path.expandvars("$SNAP/microk8s-kubectl.wrapper")
