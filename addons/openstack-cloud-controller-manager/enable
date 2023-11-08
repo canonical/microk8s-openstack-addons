@@ -17,7 +17,7 @@ from common.utils import (
     MICROK8S_STATUS,
 )
 
-from utils import ensure_addon
+from common import utils
 
 
 NAMESPACE = "occm"
@@ -81,10 +81,10 @@ def main(
     Enable the openstack-cloud-controller-manager addon.
     """
     if rbac_addon:
-        ensure_addon(rbac_addon)
+        utils.ensure_addon(rbac_addon)
 
     if helm3_addon:
-        ensure_addon(helm3_addon)
+        utils.ensure_addon(helm3_addon)
 
     set_external_provider()
 
