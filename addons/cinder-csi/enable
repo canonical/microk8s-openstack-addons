@@ -3,6 +3,9 @@
 import subprocess
 import click
 import os
+import sys
+
+sys.path.append('../common')
 
 from common.utils import ensure_addon
 
