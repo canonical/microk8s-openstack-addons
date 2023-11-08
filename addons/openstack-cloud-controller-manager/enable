@@ -17,7 +17,9 @@ from common.utils import (
     MICROK8S_STATUS,
 )
 
-from common.utils import ensure_addon
+sys.path.append('../common')
+
+from addons.common.utils import ensure_addon
 
 
 NAMESPACE = "occm"
