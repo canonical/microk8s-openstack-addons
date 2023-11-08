@@ -54,7 +54,7 @@ def main(
             "install",
             "-n",
             NAMESPACE,
-            "ccsi",
+            "cinder-csi",
             "cpo/openstack-cinder-csi",
             "--values",
             values,

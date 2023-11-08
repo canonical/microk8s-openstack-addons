@@ -12,9 +12,9 @@ KUBECTL=$SNAP/microk8s-kubectl.wrapper
 echo "Disabling Cinder CSI"
 
 # unload the the manifests
-$HELM uninstall -n $NAMESPACE ccsi
+$HELM uninstall -n $NAMESPACE cinder-csi
 
-KUBECTL -n $NAMESPACE delete clusterrole,clusterrolebinding,CSIDriver --all
+$KUBECTL -n $NAMESPACE delete clusterrole,clusterrolebinding,CSIDriver --all
 
 
 echo "Cinder CSI addon is disabled"
