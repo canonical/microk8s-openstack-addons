@@ -10,21 +10,6 @@ KUBECTL = os.path.expandvars("$SNAP/microk8s-kubectl.wrapper")
 HELM = os.path.expandvars("$SNAP/microk8s-helm3.wrapper")
 NAMESPACE = "ccsi"
 
-SECRET = f"""
-apiVersion: v1
-kind: Secret
-metadata:
-  name: cinder-csi-cloud-config
-  namespace: {NAMESPACE}
-stringData:
-"""
-
-VALUES_SECRET = f"""
-secret:
-  enabled: true
-  name: cinder-csi-cloud-config
-"""
-
 @click.command()
 @click.option("--values", required=True)
 def main(
