@@ -1,5 +1,11 @@
 import subprocess
 import click
+import os
+import sys
+
+MICROK8S_STATUS = os.path.expandvars("$SNAP/microk8s-status.wrapper")
+MICROK8S_ENABLE = os.path.expandvars("$SNAP/microk8s-enable.wrapper")
+
 
 def ensure_addon(addon_name: str):
     click.echo("Checking for addon {}...".format(addon_name))
