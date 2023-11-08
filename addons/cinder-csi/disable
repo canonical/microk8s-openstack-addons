@@ -7,11 +7,14 @@ source $SNAP/actions/common/utils.sh
 NAMESPACE="ccsi"
 
 HELM=$SNAP/microk8s-helm3.wrapper
+KUBECTL=$SNAP/microk8s-kubectl.wrapper
 
 echo "Disabling Cinder CSI"
 
 # unload the the manifests
 $HELM uninstall -n $NAMESPACE ccsi
+
+KUBECTL -n $NAMESPACE delete clusterrole,clusterrolebinding,CSIDriver --all
 
 
 echo "Cinder CSI addon is disabled"
