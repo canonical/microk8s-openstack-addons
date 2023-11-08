@@ -4,6 +4,7 @@ import subprocess
 import click
 import os
 
+from utils import ensure_addon
 
 KUBECTL = os.path.expandvars("$SNAP/microk8s-kubectl.wrapper")
 HELM = os.path.expandvars("$SNAP/microk8s-helm3.wrapper")
@@ -17,6 +18,8 @@ def main(
     """
     Enable the openstack-cloud-controller-manager addon.
     """
+
+    ensure_addon("rbac")
 
     subprocess.run(
         [

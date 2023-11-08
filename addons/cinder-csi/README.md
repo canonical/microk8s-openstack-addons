@@ -18,6 +18,8 @@ Below is an example of a valid `values.yaml`:
 secret:
   enabled: true
   name: cinder-csi-cloud-config
+  metadata:
+    namespace: ccsi
   data:
     cloud.conf:
       global:
