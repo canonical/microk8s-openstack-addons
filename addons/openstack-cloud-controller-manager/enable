@@ -17,6 +17,8 @@ from common.utils import (
     MICROK8S_STATUS,
 )
 
+from utils import ensure_addon
+
 
 NAMESPACE = "occm"
 
