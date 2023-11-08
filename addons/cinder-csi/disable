@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -e
+
+source $SNAP/actions/common/utils.sh
+
+NAMESPACE="ccsi"
+
+HELM=$SNAP/microk8s-helm3.wrapper
+
+echo "Disabling Cinder CSI"
+
+# unload the the manifests
+$HELM uninstall -n $NAMESPACE ccsi
+
+
+echo "Cinder CSI addon is disabled"

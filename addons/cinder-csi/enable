@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+
+import subprocess
+import click
+import os
+import tempfile
+
+
+KUBECTL = os.path.expandvars("$SNAP/microk8s-kubectl.wrapper")
+HELM = os.path.expandvars("$SNAP/microk8s-helm3.wrapper")
+NAMESPACE = "ccsi"
+
+SECRET = f"""
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cinder-csi-cloud-config
+  namespace: {NAMESPACE}
+stringData:
+"""
+
+VALUES_SECRET = f"""
+secret:
+  enabled: true
+  name: cinder-csi-cloud-config
+"""
+
+@click.command()
+@click.option("--values", required=True)
+def main(
+    values: str,
+):
+    """
+    Enable the openstack-cloud-controller-manager addon.
+    """
+
+    subprocess.run(
+        [
+            HELM,
+            "repo",
+            "add",
+            "cpo",
+            "https://kubernetes.github.io/cloud-provider-openstack",
+        ]
+    )
+    subprocess.run([HELM, "repo", "update"])
+
+    click.echo(f"Creating {NAMESPACE} namespace...")
+    subprocess.run(f"{KUBECTL} create namespace {NAMESPACE}".split())
+
+    subprocess.run(
+        [
+            HELM,
+            "install",
+            "-n",
+            NAMESPACE,
+            "ccsi",
+            "cpo/openstack-cinder-csi",
+            "--values",
+            values,
+        ]
+    )
+
+    click.echo(
+        f"""
+=============================================================
+Cinder CSI has been installed and will be available shortly.
+"""
+    )
+
+
+if __name__ == "__main__":
+    main()
