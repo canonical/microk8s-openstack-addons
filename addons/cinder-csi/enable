@@ -7,7 +7,7 @@ import sys
 
 sys.path.append('../common')
 
-from common.utils import ensure_addon
+from addons.common.utils import ensure_addon
 
 KUBECTL = os.path.expandvars("$SNAP/microk8s-kubectl.wrapper")
 HELM = os.path.expandvars("$SNAP/microk8s-helm3.wrapper")
