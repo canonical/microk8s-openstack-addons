@@ -15,9 +15,11 @@ NAMESPACE = "ccsi"
 
 @click.command()
 @click.option("--rbac-addon", default="core/rbac")
+@click.option("--helm3-addon", default="core/helm3")
 @click.option("--values", required=True)
 def main(
     rbac_addon: str,
+    helm3: str,
     values: str,
 ):
     """
@@ -26,6 +28,9 @@ def main(
 
     if rbac_addon:
         ensure_addon(rbac_addon)
+
+    if helm3_addon:
+        ensure_addon(helm3_addon)
 
     subprocess.run(
         [
