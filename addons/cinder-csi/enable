@@ -41,6 +41,7 @@ def main(
     click.echo(f"Creating {NAMESPACE} namespace...")
     subprocess.run(f"{KUBECTL} create namespace {NAMESPACE}".split())
 
+    click.echo("Installing the Helm chart...")
     subprocess.run(
         [
             HELM,
