@@ -14,15 +14,18 @@ HELM = os.path.expandvars("$SNAP/microk8s-helm3.wrapper")
 NAMESPACE = "ccsi"
 
 @click.command()
+@click.option("--rbac-addon", default="core/rbac")
 @click.option("--values", required=True)
 def main(
+    rbac_addon: str,
     values: str,
 ):
     """
     Enable the openstack-cloud-controller-manager addon.
     """
 
-    ensure_addon("rbac")
+    if rbac_addon:
+        ensure_addon(rbac_addon)
 
     subprocess.run(
         [
