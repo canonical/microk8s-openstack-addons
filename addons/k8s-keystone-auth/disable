@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -e
+
+source $SNAP/actions/common/utils.sh
+
+NAMESPACE="keystone-auth"
+
+# HELM=$SNAP/microk8s-helm3.wrapper
+
+echo "Disabling Cloud Provider Openstack"
+
+# unload the the manifests
+# $HELM uninstall -n $NAMESPACE occm
+
+
+echo "Cloud Provider Openstack deployment is disabled"

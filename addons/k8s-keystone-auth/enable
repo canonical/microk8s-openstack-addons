@@ -1,0 +1,193 @@
+#!/usr/bin/env python3
+
+import subprocess
+import click
+import os
+import yaml
+import tempfile
+
+KUBECTL = os.path.expandvars("$SNAP/microk8s-kubectl.wrapper")
+NAMESPACE = "keystone-auth"
+
+POLICY = f"""
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-auth-policy
+  namespace: {NAMESPACE}
+data:
+  policies: |
+    [
+      {
+        'users': {
+          'projects': ['demo'],
+          'roles': ['member']
+        },
+        'resource_permissions': {
+          '*/pods': ['get', 'list', 'watch']
+        }
+      }
+    ]
+"""
+
+RBAC = f"""
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    k8s-app: k8s-keystone-auth
+  name: k8s-keystone-auth
+rules:
+  # Allow k8s-keystone-auth to get k8s-auth-policy configmap
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-keystone-auth
+  labels:
+    k8s-app: k8s-keystone-auth
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8s-keystone-auth
+subjects:
+- kind: ServiceAccount
+  name: k8s-keystone
+  namespace: {NAMESPACE}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8s-keystone
+  namespace: {NAMESPACE}
+"""
+
+DEPLOYMENT = f"""
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-keystone-auth
+  namespace: {NAMESPACE}
+  labels:
+    app: k8s-keystone-auth
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: k8s-keystone-auth
+  template:
+    metadata:
+      labels:
+        app: k8s-keystone-auth
+    spec:
+      serviceAccountName: k8s-keystone
+      containers:
+        - name: k8s-keystone-auth
+          image: registry.k8s.io/provider-os/k8s-keystone-auth:v1.28.0
+          args:
+            - ./bin/k8s-keystone-auth
+            - --tls-cert-file
+            - /etc/pki/tls.crt
+            - --tls-private-key-file
+            - /etc/pki/tls.key
+            - --policy-configmap-name
+            - k8s-auth-policy
+            - --keystone-url
+          volumeMounts:
+            - mountPath: /etc/pki
+              name: certs
+              readOnly: true
+          ports:
+            - containerPort: 8443
+      volumes:
+      - name: certs
+        secret:
+          secretName: keystone-auth-certs
+"""
+
+
+SERVICE = f"""
+kind: Service
+apiVersion: v1
+metadata:
+  name: k8s-keystone-auth-service
+  namespace: {NAMESPACE}
+spec:
+  selector:
+    app: k8s-keystone-auth
+  ports:
+    - protocol: TCP
+      port: 8443
+      targetPort: 8443
+"""
+
+def ensure_addon(addon_name: str):
+    click.echo("Checking for addon {}...".format(addon_name))
+    output = subprocess.check_output([MICROK8S_STATUS, "-a", addon_name]).decode()
+    if "enabled" not in output:
+        p = subprocess.run([MICROK8S_ENABLE, addon_name])
+        if p.returncode != 0:
+            click.echo("Failed to enable addon {}".format(addon_name), err=True)
+            sys.exit(1)
+
+    click.echo("Checking for addon {}... OK".format(addon_name))
+
+
+@click.command()
+@click.option("--rbac-addon", default="core/rbac")
+@click.option("--keystone-url", required=True)
+@click.option("--auth-policy")
+@click.option("--cert", required=True)
+@click.option("--key", required=True)
+def main(
+    rbac_addon: str,
+    keystone_url: str,
+    auth_policy: str,
+    cert: str,
+    key: str,
+):
+    """
+    Enable the k8s-keystone-auth addon.
+    """
+    if rbac_addon:
+        ensure_addon(rbac_addon)
+
+    if not auth_policy:
+        click.echo("Creating auth policy ConfigMap...")
+        policy = yaml.safe_load(POLICY)
+        with tempfile.NamedTemporaryFile() as temp_file:
+            yaml.dump(policy, temp_file)
+            subprocess.run(f"{KUBECTL} deploy -f {temp_file}".split())
+    else:
+        subprocess.run(f"{KUBECTL} deploy -f {auth_policy}".split())
+
+    click.echo("Storing certificates...")
+    subprocess.run(
+        f"{KUBECTL} -n {NAMESPACE} create secret tls keystone-auth-certs --cert={cert} --key={key}".split()
+    )
+
+    click.echo("Creating service account...")
+    rbac = yaml.safe_load(RBAC)
+    with tempfile.NamedTemporaryFile() as temp_file:
+        yaml.dump(rbac, temp_file)
+        subprocess.run(f"{KUBECTL} apply -f {temp_file}".split())
+    
+    click.echo("Deploying keystone-auth...")
+    deployment = yaml.safe_load(DEPLOYMENT)
+    deployment["spec"]["template"]["spec"]["containers"][0]["args"].append(keystone_url)
+    with tempfile.NamedTemporaryFile() as temp_file:
+        yaml.dump(deployment, temp_file)
+        subprocess.run(f"{KUBECTL} apply -f {deployment}".split())
+    
+    click.echo("Enabling keystone-auth service...")
+    service = yaml.safe_load(SERVICE)
+    with tempfile.NamedTemporaryFile() as temp_file:
+        yaml.dump(service, temp_file)
+        subprocess.run(f"{KUBECTL} apply -f {service}".split())
+
+
+if __name__ == "__main__":
+    main()
