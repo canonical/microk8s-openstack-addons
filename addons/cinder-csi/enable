@@ -19,7 +19,7 @@ NAMESPACE = "ccsi"
 @click.option("--values", required=True)
 def main(
     rbac_addon: str,
-    helm3: str,
+    helm3_addon: str,
     values: str,
 ):
     """
