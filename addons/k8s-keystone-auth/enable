@@ -140,9 +140,9 @@ def ensure_addon(addon_name: str):
 
 def apply_tempfile(payload: str):
     data = yaml.safe_load(payload)
-    with tempfile.NamedTemporaryFile() as temp_file:
+    with tempfile.NamedTemporaryFile(mode='w') as temp_file:
         yaml.dump(data, temp_file)
-        subprocess.run(f"{KUBECTL} apply -f {temp_file}".split())
+        subprocess.run(f"{KUBECTL} apply -f {temp_file.name}".split())
 
 
 @click.command()
@@ -181,9 +181,9 @@ def main(
     click.echo("Deploying keystone-auth...")
     deployment = yaml.safe_load(DEPLOYMENT)
     deployment["spec"]["template"]["spec"]["containers"][0]["args"].append(keystone_url)
-    with tempfile.NamedTemporaryFile() as temp_file:
+    with tempfile.NamedTemporaryFile(mode='w') as temp_file:
         yaml.dump(deployment, temp_file)
-        subprocess.run(f"{KUBECTL} apply -f {temp_file}".split())
+        subprocess.run(f"{KUBECTL} apply -f {temp_file.name}".split())
 
     click.echo("Enabling keystone-auth service...")
     apply_tempfile(SERVICE)
