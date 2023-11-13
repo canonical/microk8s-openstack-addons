@@ -5,6 +5,7 @@ import click
 import os
 import yaml
 import tempfile
+import sys
 
 KUBECTL = os.path.expandvars("$SNAP/microk8s-kubectl.wrapper")
 NAMESPACE = "keystone-auth"
