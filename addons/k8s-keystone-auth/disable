@@ -6,12 +6,13 @@ source $SNAP/actions/common/utils.sh
 
 NAMESPACE="keystone-auth"
 
-# HELM=$SNAP/microk8s-helm3.wrapper
+KUBECTL="$SNAP/microk8s-kubectl.wrapper"
 
-echo "Disabling Cloud Provider Openstack"
+KUBECTL_DELETE_ARGS="--wait=true --timeout=180s --ignore-not-found=true"
 
-# unload the the manifests
-# $HELM uninstall -n $NAMESPACE occm
+echo "Disabling Keystone Auth..."
+
+$KUBECTL delete $KUBECTL_DELETE_ARGS namespace $NAMESPACE
 
 
-echo "Cloud Provider Openstack deployment is disabled"
+echo "Keystone Auth deployment is disabled"
