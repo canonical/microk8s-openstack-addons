@@ -7,9 +7,11 @@ import yaml
 import tempfile
 import sys
 
-sys.path.append("../common")
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
+)
 
-from addons.common.utils import (
+from common.utils import (
     ensure_addon,
     KUBECTL,
 )
