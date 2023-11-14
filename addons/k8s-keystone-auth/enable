@@ -7,7 +7,13 @@ import yaml
 import tempfile
 import sys
 
-KUBECTL = os.path.expandvars("$SNAP/microk8s-kubectl.wrapper")
+sys.path.append("../common")
+
+from addons.common.utils import (
+    ensure_addon,
+    KUBECTL,
+)
+
 NAMESPACE = "keystone-auth"
 
 POLICY = f"""
