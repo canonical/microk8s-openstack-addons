@@ -163,6 +163,8 @@ def main(
     if rbac_addon:
         ensure_addon(rbac_addon)
 
+    subprocess.run(f"{KUBECTL} create namespace {NAMESPACE}".split())
+
     if not auth_policy:
         click.echo("Creating auth policy ConfigMap...")
         k8s_apply_dict(POLICY)
