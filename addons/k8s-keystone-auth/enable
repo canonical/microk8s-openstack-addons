@@ -99,16 +99,7 @@ spec:
       serviceAccountName: k8s-keystone
       containers:
         - name: k8s-keystone-auth
-          image: registry.k8s.io/provider-os/k8s-keystone-auth:v1.28.0
-          args:
-            - ./bin/k8s-keystone-auth
-            - --tls-cert-file
-            - /etc/pki/tls.crt
-            - --tls-private-key-file
-            - /etc/pki/tls.key
-            - --policy-configmap-name
-            - k8s-auth-policy
-            - --keystone-url
+          image: registry.k8s.io/provider-os/k8s-keystone-auth:v1.27.3
           volumeMounts:
             - mountPath: /etc/pki
               name: certs
@@ -190,7 +181,17 @@ def main(
 
     click.echo("Deploying keystone-auth...")
     deployment = yaml.safe_load(DEPLOYMENT)
-    deployment["spec"]["template"]["spec"]["containers"][0]["args"].append(keystone_url)
+    deployment["spec"]["template"]["spec"]["containers"][0]["args"] = [
+      "./bin/k8s-keystone-auth",
+        "--tls-cert-file",
+        "/etc/pki/tls.crt",
+        "--tls-private-key-file",
+        "/etc/pki/tls.key",
+        "--policy-configmap-name",
+        "k8s-auth-policy",
+        "--keystone-url",
+        keystone_url,
+    ]
     k8s_apply_dict(deployment)
 
     click.echo("Enabling keystone-auth service...")
