@@ -169,7 +169,7 @@ def main(
         click.echo("Creating auth policy ConfigMap...")
         k8s_apply_dict(POLICY)
     else:
-        subprocess.run(f"{KUBECTL} deploy -f {auth_policy}".split())
+        subprocess.run(f"{KUBECTL} apply -f {auth_policy}".split())
 
     click.echo("Storing certificates...")
     subprocess.run(
