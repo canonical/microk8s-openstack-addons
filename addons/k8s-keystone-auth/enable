@@ -130,21 +130,8 @@ spec:
 """
 
 
-def ensure_addon(addon_name: str):
-    click.echo("Checking for addon {}...".format(addon_name))
-    output = subprocess.check_output([MICROK8S_STATUS, "-a", addon_name]).decode()
-    if "enabled" not in output:
-        p = subprocess.run([MICROK8S_ENABLE, addon_name])
-        if p.returncode != 0:
-            click.echo("Failed to enable addon {}".format(addon_name), err=True)
-            sys.exit(1)
-
-    click.echo("Checking for addon {}... OK".format(addon_name))
-
-
-def apply_tempfile(payload: str):
-    data = yaml.safe_load(payload)
-    with tempfile.NamedTemporaryFile(mode='w') as temp_file:
+def k8s_apply_dict(data: str):
+    with tempfile.NamedTemporaryFile(mode="w") as temp_file:
         yaml.dump(data, temp_file)
         subprocess.run(f"{KUBECTL} apply -f {temp_file.name}".split())
 
@@ -170,7 +157,7 @@ def main(
 
     if not auth_policy:
         click.echo("Creating auth policy ConfigMap...")
-        apply_tempfile(POLICY)
+        k8s_apply_dict(POLICY)
     else:
         subprocess.run(f"{KUBECTL} deploy -f {auth_policy}".split())
 
@@ -180,23 +167,25 @@ def main(
     )
 
     click.echo("Creating service account...")
-    apply_tempfile(ACCOUNT)
+    account = yaml.safe_load(ACCOUNT)
+    k8s_apply_dict(account)
 
     click.echo("Creating ClusterRole...")
-    apply_tempfile(ROLE)
-    
+    role = yaml.safe_load(ROLE)
+    k8s_apply_dict(role)
+
     click.echo("Creating ClusterRoleBinding...")
-    apply_tempfile(BINDING)
+    binding = yaml.safe_load(BINDING)
+    k8s_apply_dict(binding)
 
     click.echo("Deploying keystone-auth...")
     deployment = yaml.safe_load(DEPLOYMENT)
     deployment["spec"]["template"]["spec"]["containers"][0]["args"].append(keystone_url)
-    with tempfile.NamedTemporaryFile(mode='w') as temp_file:
-        yaml.dump(deployment, temp_file)
-        subprocess.run(f"{KUBECTL} apply -f {temp_file.name}".split())
+    k8s_apply_dict(deployment)
 
     click.echo("Enabling keystone-auth service...")
-    apply_tempfile(SERVICE)
+    service = yaml.safe_load(SERVICE)
+    k8s_apply_dict(service)
 
 
 if __name__ == "__main__":
