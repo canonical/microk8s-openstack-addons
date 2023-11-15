@@ -17,7 +17,7 @@ from common.utils import (
 )
 
 NAMESPACE = "keystone-auth"
-WEBHOOK_CONFIG = "$SNAP_COMMON/etc/webhookconfig.yaml"
+WEBHOOK_CONFIG = os.path.expandvars("$SNAP_COMMON/etc/webhookconfig.yaml")
 
 APISERVER_OPTS = {
   "authorization-webhook-config-file": WEBHOOK_CONFIG,
