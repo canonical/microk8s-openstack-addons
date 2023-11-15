@@ -241,6 +241,7 @@ def main(
       click.echo(f"Setting {key} in kube-apiserver...")
       subprocess.check_call(
           [
+              "/bin/bash",
               os.path.expandvars("$SNAP/actions/common/utils.sh"),
               "refresh_opt_in_config",
               key,
