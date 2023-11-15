@@ -129,6 +129,24 @@ spec:
       targetPort: 8443
 """
 
+WEBHOOK_CONF = """
+apiVersion: v1
+kind: Config
+preferences: {}
+clusters:
+  - cluster:
+      insecure-skip-tls-verify: true
+    name: webhook
+users:
+  - name: webhook
+contexts:
+  - context:
+      cluster: webhook
+      user: webhook
+    name: webhook
+current-context: webhook
+"""
+
 
 def k8s_apply_dict(data: str):
     with tempfile.NamedTemporaryFile(mode="w") as temp_file:
@@ -183,7 +201,7 @@ def main(
     click.echo("Deploying keystone-auth...")
     deployment = yaml.safe_load(DEPLOYMENT)
     deployment["spec"]["template"]["spec"]["containers"][0]["args"] = [
-      "./bin/k8s-keystone-auth",
+        "./bin/k8s-keystone-auth",
         "--tls-cert-file",
         "/etc/pki/tls.crt",
         "--tls-private-key-file",
@@ -198,6 +216,20 @@ def main(
     click.echo("Enabling keystone-auth service...")
     service = yaml.safe_load(SERVICE)
     k8s_apply_dict(service)
+
+    click.echo("Writing webhook config...")
+    webhook = yaml.safe_load(WEBHOOK_CONF)
+    webhook_ip = (
+        subprocess.run(
+            f"{KUBECTL} get service k8s-keystone-auth-service -n {NAMESPACE} -o jsonpath='{{.spec.clusterIP}}'".split(),
+            stdout=subprocess.PIPE,
+        )
+        .stdout.decode()
+        .strip("'")
+    )
+    webhook["cluster"][0]["cluster"]["server"] = f"https://{webhook_ip}:8443/webhook"
+    with open("$SNAP_COMMON/etc/webhookconfig.yaml", mode="w") as config:
+        yaml.dump(data, config)
 
 
 if __name__ == "__main__":
