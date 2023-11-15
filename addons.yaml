@@ -8,3 +8,10 @@ microk8s-addons:
       supported_architectures:
         - amd64
         - arm64
+    - name: "cinder-csi"
+      description: "The Cinder CSI Driver is a CSI Specification compliant driver used by Container Orchestrators to manage the lifecycle of OpenStack Cinder Volumes."
+      version: "2.29.0-alpha.2"
+      check_status: "daemonset.apps/openstack-cinder-csi-nodeplugin"
+      supported_architectures:
+        - amd64
+        - arm64
