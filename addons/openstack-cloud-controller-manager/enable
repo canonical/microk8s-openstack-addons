@@ -24,6 +24,7 @@ NAMESPACE = "occm"
 def set_external_provider():
     subprocess.check_call(
         [
+            "/bin/bash",
             os.path.expandvars("$SNAP/actions/common/utils.sh"),
             "refresh_opt_in_config",
             "cloud-provider",
