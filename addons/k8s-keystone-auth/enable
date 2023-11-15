@@ -235,7 +235,7 @@ def main(
     )
     webhook["clusters"][0]["cluster"]["server"] = f"https://{webhook_ip}:8443/webhook"
     with open(WEBHOOK_CONFIG, mode="w") as config:
-        yaml.dump(data, config)
+        yaml.dump(webhook, config)
 
     for key, val in APISERVER_OPTS.items():
       click.echo(f"Setting {key} in kube-apiserver...")
