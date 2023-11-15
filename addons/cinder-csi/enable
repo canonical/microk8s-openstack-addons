@@ -5,9 +5,11 @@ import click
 import os
 import sys
 
-sys.path.append('../common')
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
+)
 
-from addons.common.utils import ensure_addon
+from common.utils import ensure_addon
 
 KUBECTL = os.path.expandvars("$SNAP/microk8s-kubectl.wrapper")
 HELM = os.path.expandvars("$SNAP/microk8s-helm3.wrapper")
