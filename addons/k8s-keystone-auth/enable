@@ -233,7 +233,7 @@ def main(
         .stdout.decode()
         .strip("'")
     )
-    webhook["cluster"][0]["cluster"]["server"] = f"https://{webhook_ip}:8443/webhook"
+    webhook["clusters"][0]["cluster"]["server"] = f"https://{webhook_ip}:8443/webhook"
     with open(WEBHOOK_CONFIG, mode="w") as config:
         yaml.dump(data, config)
 
