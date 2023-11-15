@@ -20,6 +20,7 @@ NAMESPACE = "keystone-auth"
 WEBHOOK_CONFIG = os.path.expandvars("$SNAP_COMMON/etc/webhookconfig.yaml")
 
 APISERVER_OPTS = {
+  "authentication-token-webhook-config-file": WEBHOOK_CONFIG,
   "authorization-webhook-config-file": WEBHOOK_CONFIG,
   "authorization-mode": "Node,RBAC,Webhook",
 }
