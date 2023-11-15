@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -e
+
+source $SNAP/actions/common/utils.sh
+
+NAMESPACE="ccsi"
+
+HELM=$SNAP/microk8s-helm3.wrapper
+KUBECTL=$SNAP/microk8s-kubectl.wrapper
+
+KUBECTL_DELETE_ARGS="--wait=true --timeout=180s --ignore-not-found=true"
+
+echo "Disabling Cinder CSI"
+
+# unload the the manifests
+$HELM uninstall -n $NAMESPACE cinder-csi
+
+$KUBECTL $KUBECTL_DELETE_ARGS delete namespace $NAMESPACE > /dev/null 2>&1
+
+
+echo "Cinder CSI addon is disabled"

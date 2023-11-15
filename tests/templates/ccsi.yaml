@@ -1,0 +1,18 @@
+secret:
+  enabled: true
+  name: cinder-csi-cloud-config
+  data:
+    cloud.conf:
+      global:
+        auth-url: http://keystone-url
+        application-credential-id: <cred-id>
+        application-credential-secret: <cred-secret>
+        region: RegionOne
+        tenant-name: <user-id>
+        ca-cert: /path/to/rootCA.crt
+      blockstorage:
+        bs-version: v3
+csi:
+  plugin:
+    nodePlugin:
+      kubeletDir: /var/snap/microk8s/common/var/lib/kubelet

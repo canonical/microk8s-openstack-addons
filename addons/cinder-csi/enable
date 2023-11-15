@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+
+import subprocess
+import click
+import os
+import sys
+
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
+)
+
+from common.utils import ensure_addon
+
+KUBECTL = os.path.expandvars("$SNAP/microk8s-kubectl.wrapper")
+HELM = os.path.expandvars("$SNAP/microk8s-helm3.wrapper")
+NAMESPACE = "ccsi"
+
+@click.command()
+@click.option("--rbac-addon", default="core/rbac")
+@click.option("--helm3-addon", default="core/helm3")
+@click.option("--values", required=True)
+def main(
+    rbac_addon: str,
+    helm3_addon: str,
+    values: str,
+):
+    """
+    Enable the openstack-cloud-controller-manager addon.
+    """
+
+    if rbac_addon:
+        ensure_addon(rbac_addon)
+
+    if helm3_addon:
+        ensure_addon(helm3_addon)
+
+    subprocess.run(
+        [
+            HELM,
+            "repo",
+            "add",
+            "cpo",
+            "https://kubernetes.github.io/cloud-provider-openstack",
+        ]
+    )
+    subprocess.run([HELM, "repo", "update"])
+
+    click.echo(f"Creating {NAMESPACE} namespace...")
+    subprocess.run(f"{KUBECTL} create namespace {NAMESPACE}".split())
+
+    click.echo("Installing the Helm chart...")
+    subprocess.run(
+        [
+            HELM,
+            "install",
+            "-n",
+            NAMESPACE,
+            "cinder-csi",
+            "cpo/openstack-cinder-csi",
+            "--values",
+            values,
+        ]
+    )
+
+    click.echo(
+        f"""
+=============================================================
+Cinder CSI has been installed and will be available shortly.
+"""
+    )
+
+
+if __name__ == "__main__":
+    main()
