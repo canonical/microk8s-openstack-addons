@@ -17,6 +17,12 @@ from common.utils import (
 )
 
 NAMESPACE = "keystone-auth"
+WEBHOOK_CONFIG = "$SNAP_COMMON/etc/webhookconfig.yaml"
+
+APISERVER_OPTS = {
+  "authorization-webhook-config-file": WEBHOOK_CONFIG,
+  "authorization-mode": "Node,RBAC,Webhook",
+}
 
 POLICY = f"""
 apiVersion: v1
@@ -129,7 +135,7 @@ spec:
       targetPort: 8443
 """
 
-WEBHOOK_CONF = """
+WEBHOOK = """
 apiVersion: v1
 kind: Config
 preferences: {}
@@ -218,7 +224,7 @@ def main(
     k8s_apply_dict(service)
 
     click.echo("Writing webhook config...")
-    webhook = yaml.safe_load(WEBHOOK_CONF)
+    webhook = yaml.safe_load(WEBHOOK)
     webhook_ip = (
         subprocess.run(
             f"{KUBECTL} get service k8s-keystone-auth-service -n {NAMESPACE} -o jsonpath='{{.spec.clusterIP}}'".split(),
@@ -228,8 +234,22 @@ def main(
         .strip("'")
     )
     webhook["cluster"][0]["cluster"]["server"] = f"https://{webhook_ip}:8443/webhook"
-    with open("$SNAP_COMMON/etc/webhookconfig.yaml", mode="w") as config:
+    with open(WEBHOOK_CONFIG, mode="w") as config:
         yaml.dump(data, config)
+
+    for key, val in APISERVER_OPTS.items():
+      click.echo(f"Setting {key} in kube-apiserver...")
+      subprocess.check_call(
+          [
+              os.path.expandvars("$SNAP/actions/common/utils.sh"),
+              "refresh_opt_in_config",
+              key,
+              val,
+              "kube-apiserver",
+          ],
+          stdout=subprocess.DEVNULL,
+          stderr=subprocess.DEVNULL,
+      )
 
 
 if __name__ == "__main__":
