@@ -304,7 +304,7 @@ def main(
 
             yaml.dump(config_data, kube_config)
     except FileNotFoundError:
-        click.echo(f"File not found.")
+        click.echo(f"{config} not found")
     except yaml.YAMLError as err:
         click.echo(f"Error reading YAML file: {err}")
 
