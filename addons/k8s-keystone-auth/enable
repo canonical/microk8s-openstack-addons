@@ -308,6 +308,9 @@ def main(
     except yaml.YAMLError as err:
         click.echo(f"Error reading YAML file: {err}")
 
+    click.echo("Setting context...")
+    subprocess.run(f"kubectl config set-context --cluster=microk8s --user={username} {username}@microk8s".split())
+
 
 if __name__ == "__main__":
     main()
