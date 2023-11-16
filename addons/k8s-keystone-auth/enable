@@ -21,8 +21,11 @@ NAMESPACE = "keystone-auth"
 WEBHOOK_CONFIG = os.path.expandvars("$SNAP_COMMON/etc/webhookconfig.yaml")
 CLIENT = os.path.expandvars("$SNAP_DATA/client-keystone-auth")
 
-APISERVER_OPTS = {
+AUTHENTICATION_OPTS = {
     "authentication-token-webhook-config-file": WEBHOOK_CONFIG,
+}
+
+AUTHORIZATION_OPTS = {
     "authorization-webhook-config-file": WEBHOOK_CONFIG,
     "authorization-mode": "Node,RBAC,Webhook",
 }
@@ -170,6 +173,7 @@ def k8s_apply_dict(data: str):
 @click.option("--cert", required=True)
 @click.option("--key", required=True)
 @click.option("--username", default="openstackuser")
+@click.option("--skip-config-authorization", default=False)
 def main(
     rbac_addon: str,
     keystone_url: str,
@@ -177,6 +181,7 @@ def main(
     cert: str,
     key: str,
     username: str,
+    skip_config_authorization: str,
 ):
     """
     Enable the k8s-keystone-auth addon.
@@ -242,7 +247,10 @@ def main(
     with open(WEBHOOK_CONFIG, mode="w") as config:
         yaml.dump(webhook, config)
 
-    for key, val in APISERVER_OPTS.items():
+    apiserver_opts = AUTHENTICATION_OPTS
+    if not skip_config_authorization:
+        apiserver_opts.update(AUTHENTICATION_OPTS)
+    for key, val in apiserver_opts.items():
         click.echo(f"Setting {key} in kube-apiserver...")
         subprocess.check_call(
             [
@@ -269,30 +277,32 @@ def main(
 
             click.echo(f"File downloaded and saved to {CLIENT}")
         else:
-            click.echo(f"Failed to download client-keystone-auth.  Manually place binary at {CLIENT}.")
+            click.echo(
+                f"Failed to download client-keystone-auth.  Manually place binary at {CLIENT}."
+            )
     try:
-      config = f"/home/{os.environ.get('SUDO_USER')}/.kube/config"
-      with open(config, "r+") as kube_config:
-          config_data = yaml.safe_load(kube_config)
+        config = f"/home/{os.environ.get('SUDO_USER')}/.kube/config"
+        with open(config, "r+") as kube_config:
+            config_data = yaml.safe_load(kube_config)
 
-          for user in config_data["users"]:
-              if user["name"] == username:
-                  break
-          else:
-              click.echo("Configuring client...")
-              config_data["users"].append(
-                  {
-                      "name": username,
-                      "user": {
-                          "exec": {
-                              "command": CLIENT,
-                              "apiVersion": "client.authentication.k8s.io/v1beta1",
-                          }
-                      },
-                  }
-              )
+            for user in config_data["users"]:
+                if user["name"] == username:
+                    break
+            else:
+                click.echo("Configuring client...")
+                config_data["users"].append(
+                    {
+                        "name": username,
+                        "user": {
+                            "exec": {
+                                "command": CLIENT,
+                                "apiVersion": "client.authentication.k8s.io/v1beta1",
+                            }
+                        },
+                    }
+                )
 
-          yaml.dump(config_data, kube_config)
+            yaml.dump(config_data, kube_config)
     except FileNotFoundError:
         click.echo(f"File not found.")
     except yaml.YAMLError as err:
