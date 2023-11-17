@@ -4,15 +4,13 @@ set -e
 
 source $SNAP/actions/common/utils.sh
 
-NAMESPACE="keystone-auth"
-
 KUBECTL="$SNAP/microk8s-kubectl.wrapper"
 
 KUBECTL_DELETE_ARGS="--wait=true --timeout=180s --ignore-not-found=true"
 
 echo "Disabling Keystone Auth..."
 
-$KUBECTL delete $KUBECTL_DELETE_ARGS namespace $NAMESPACE
+$KUBECTL delete $KUBECTL_DELETE_ARGS -n kube-system deployment.apps/k8s-keystone-auth 
 
 
 echo "Keystone Auth deployment is disabled"
