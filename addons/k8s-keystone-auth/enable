@@ -181,7 +181,7 @@ def main(
     cert: str,
     key: str,
     username: str,
-    skip_config_authorization: str,
+    skip_config_authorization: bool,
 ):
     """
     Enable the k8s-keystone-auth addon.
