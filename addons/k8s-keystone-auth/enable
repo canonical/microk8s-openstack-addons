@@ -17,7 +17,7 @@ from common.utils import (
     KUBECTL,
 )
 
-NAMESPACE = "keystone-auth"
+NAMESPACE = "kube-system"
 WEBHOOK_CONFIG = os.path.expandvars("$SNAP_COMMON/etc/webhookconfig.yaml")
 CLIENT = os.path.expandvars("$SNAP_DATA/client-keystone-auth")
 
