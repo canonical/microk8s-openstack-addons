@@ -27,3 +27,5 @@ microk8s enable k8s-keystone-auth --auth-policy path/to/policy.yaml --keystone-u
 - **keystone-url:** HTTP(S) url to Keystone service
 - **cert:** Cert for use with the keystone-auth service
 - **key:** Cert key for use with the keystone-auth service
+- **username:** User to configure client-keystone-auth
+- **skip-config-authorization:** Skip configuring kube-apiserver for authorization
