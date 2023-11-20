@@ -1,0 +1,324 @@
+#!/usr/bin/env python3
+
+import subprocess
+import click
+import os
+import yaml
+import tempfile
+import sys
+import requests
+
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
+)
+
+from common.utils import (
+    ensure_addon,
+    KUBECTL,
+)
+
+NAMESPACE = "kube-system"
+WEBHOOK_CONFIG = os.path.expandvars("$SNAP_COMMON/etc/webhookconfig.yaml")
+CLIENT = os.path.expandvars("$SNAP_DATA/client-keystone-auth")
+
+AUTHENTICATION_OPTS = {
+    "authentication-token-webhook-config-file": WEBHOOK_CONFIG,
+}
+
+AUTHORIZATION_OPTS = {
+    "authorization-webhook-config-file": WEBHOOK_CONFIG,
+    "authorization-mode": "Node,RBAC,Webhook",
+}
+
+POLICY = f"""
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k8s-auth-policy
+  namespace: kube-system
+data:
+  policies: |
+    [
+      {{
+        "users": {{
+          "projects": ["demo"],
+          "roles": ["member"]
+        }},
+        "resource_permissions": {{
+          "*/pods": ["get", "list", "watch"]
+        }}
+      }}
+    ]
+
+"""
+
+ROLE = f"""
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    k8s-app: k8s-keystone-auth
+  name: k8s-keystone-auth
+rules:
+  # Allow k8s-keystone-auth to get k8s-auth-policy configmap
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "watch", "list"]
+"""
+
+BINDING = f"""
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-keystone-auth
+  labels:
+    k8s-app: k8s-keystone-auth
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8s-keystone-auth
+subjects:
+- kind: ServiceAccount
+  name: k8s-keystone
+  namespace: {NAMESPACE}
+"""
+
+ACCOUNT = f"""
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8s-keystone
+  namespace: {NAMESPACE}
+"""
+
+DEPLOYMENT = f"""
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: k8s-keystone-auth
+  namespace: {NAMESPACE}
+  labels:
+    app: k8s-keystone-auth
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: k8s-keystone-auth
+  template:
+    metadata:
+      labels:
+        app: k8s-keystone-auth
+    spec:
+      serviceAccountName: k8s-keystone
+      containers:
+        - name: k8s-keystone-auth
+          image: registry.k8s.io/provider-os/k8s-keystone-auth:v1.27.3
+          volumeMounts:
+            - mountPath: /etc/pki
+              name: certs
+              readOnly: true
+          ports:
+            - containerPort: 8443
+          env:
+            - name: TLS_CERT_FILE
+              value: /etc/pki/tls.crt
+            - name: TLS_PRIVATE_KEY_FILE
+              value: /etc/pki/tls.key
+      volumes:
+      - name: certs
+        secret:
+          secretName: keystone-auth-certs
+"""
+
+
+SERVICE = f"""
+kind: Service
+apiVersion: v1
+metadata:
+  name: k8s-keystone-auth-service
+  namespace: {NAMESPACE}
+spec:
+  selector:
+    app: k8s-keystone-auth
+  ports:
+    - protocol: TCP
+      port: 8443
+      targetPort: 8443
+"""
+
+WEBHOOK = """
+apiVersion: v1
+kind: Config
+preferences: {}
+clusters:
+  - cluster:
+      insecure-skip-tls-verify: true
+    name: webhook
+users:
+  - name: webhook
+contexts:
+  - context:
+      cluster: webhook
+      user: webhook
+    name: webhook
+current-context: webhook
+"""
+
+
+def k8s_apply_dict(data: str):
+    with tempfile.NamedTemporaryFile(mode="w") as temp_file:
+        yaml.dump(data, temp_file)
+        subprocess.run(f"{KUBECTL} apply -f {temp_file.name}".split())
+
+
+@click.command()
+@click.option("--rbac-addon", default="core/rbac")
+@click.option("--keystone-url", required=True)
+@click.option("--auth-policy")
+@click.option("--cert", required=True)
+@click.option("--key", required=True)
+@click.option("--username", default="openstackuser")
+@click.option("--skip-config-authorization", default=False)
+def main(
+    rbac_addon: str,
+    keystone_url: str,
+    auth_policy: str,
+    cert: str,
+    key: str,
+    username: str,
+    skip_config_authorization: bool,
+):
+    """
+    Enable the k8s-keystone-auth addon.
+    """
+    if rbac_addon:
+        ensure_addon(rbac_addon)
+
+    subprocess.run(f"{KUBECTL} create namespace {NAMESPACE}".split())
+
+    if not auth_policy:
+        click.echo("Creating auth policy ConfigMap...")
+        with tempfile.NamedTemporaryFile(mode="w") as temp_file:
+          temp_file.write(POLICY)
+          temp_file.flush()
+          subprocess.run(f"{KUBECTL} apply -f {temp_file.name}".split())
+    else:
+        subprocess.run(f"{KUBECTL} apply -f {auth_policy}".split())
+
+    click.echo("Storing certificates...")
+    subprocess.run(
+        f"{KUBECTL} -n {NAMESPACE} create secret tls keystone-auth-certs --cert={cert} --key={key}".split()
+    )
+
+    click.echo("Creating service account...")
+    account = yaml.safe_load(ACCOUNT)
+    k8s_apply_dict(account)
+
+    click.echo("Creating ClusterRole...")
+    role = yaml.safe_load(ROLE)
+    k8s_apply_dict(role)
+
+    click.echo("Creating ClusterRoleBinding...")
+    binding = yaml.safe_load(BINDING)
+    k8s_apply_dict(binding)
+
+    click.echo("Deploying keystone-auth...")
+    deployment = yaml.safe_load(DEPLOYMENT)
+    deployment["spec"]["template"]["spec"]["containers"][0]["args"] = [
+        "./bin/k8s-keystone-auth",
+        "--tls-cert-file",
+        "/etc/pki/tls.crt",
+        "--tls-private-key-file",
+        "/etc/pki/tls.key",
+        "--policy-configmap-name",
+        "k8s-auth-policy",
+        "--keystone-url",
+        keystone_url,
+    ]
+    k8s_apply_dict(deployment)
+
+    click.echo("Enabling keystone-auth service...")
+    service = yaml.safe_load(SERVICE)
+    k8s_apply_dict(service)
+
+    click.echo("Writing webhook config...")
+    webhook = yaml.safe_load(WEBHOOK)
+    webhook_ip = (
+        subprocess.run(
+            f"{KUBECTL} get service k8s-keystone-auth-service -n {NAMESPACE} -o jsonpath='{{.spec.clusterIP}}'".split(),
+            stdout=subprocess.PIPE,
+        )
+        .stdout.decode()
+        .strip("'")
+    )
+    webhook["clusters"][0]["cluster"]["server"] = f"https://{webhook_ip}:8443/webhook"
+    with open(WEBHOOK_CONFIG, mode="w") as config:
+        yaml.dump(webhook, config)
+
+    apiserver_opts = AUTHENTICATION_OPTS
+    if not skip_config_authorization:
+        apiserver_opts.update(AUTHENTICATION_OPTS)
+    for key, val in apiserver_opts.items():
+        click.echo(f"Setting {key} in kube-apiserver...")
+        subprocess.check_call(
+            [
+                "/bin/bash",
+                os.path.expandvars("$SNAP/actions/common/utils.sh"),
+                "refresh_opt_in_config",
+                key,
+                val,
+                "kube-apiserver",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+    if not os.path.exists(CLIENT):
+        click.echo("Fetching client-keystone-auth...")
+        auth_bin = requests.get(
+            "https://github.com/kubernetes/cloud-provider-openstack/releases/download/v1.18.0/client-keystone-auth"
+        )
+
+        if auth_bin.status_code == 200:
+            with open(CLIENT, "wb") as file:
+                file.write(auth_bin.content)
+
+            click.echo(f"File downloaded and saved to {CLIENT}")
+        else:
+            click.echo(
+                f"Failed to download client-keystone-auth.  Manually place binary at {CLIENT}."
+            )
+    try:
+        config = f"/home/{os.environ.get('SUDO_USER')}/.kube/config"
+        with open(config, "r+") as kube_config:
+            config_data = yaml.safe_load(kube_config)
+
+            for user in config_data["users"]:
+                if user["name"] == username:
+                    break
+            else:
+                click.echo("Configuring client...")
+                config_data["users"].append(
+                    {
+                        "name": username,
+                        "user": {
+                            "exec": {
+                                "command": CLIENT,
+                                "apiVersion": "client.authentication.k8s.io/v1beta1",
+                            }
+                        },
+                    }
+                )
+
+            yaml.dump(config_data, kube_config)
+    except FileNotFoundError:
+        click.echo(f"{config} not found")
+    except yaml.YAMLError as err:
+        click.echo(f"Error reading YAML file: {err}")
+
+    click.echo("Setting context...")
+    subprocess.run(f"kubectl config set-context --cluster=microk8s --user={username} {username}@microk8s".split())
+
+
+if __name__ == "__main__":
+    main()
