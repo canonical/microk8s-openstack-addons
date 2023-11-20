@@ -198,7 +198,10 @@ def main(
 
     if not auth_policy:
         click.echo("Creating auth policy ConfigMap...")
-        k8s_apply_dict(POLICY)
+        with tempfile.NamedTemporaryFile(mode="w") as temp_file:
+          temp_file.write(POLICY)
+          temp_file.flush()
+          subprocess.run(f"{KUBECTL} apply -f {temp_file.name}".split())
     else:
         subprocess.run(f"{KUBECTL} apply -f {auth_policy}".split())
 
