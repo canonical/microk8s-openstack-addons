@@ -7,6 +7,7 @@ import yaml
 import tempfile
 import sys
 import requests
+import base64
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.abspath(os.path.dirname(__file__)), ".."))
@@ -29,6 +30,15 @@ AUTHORIZATION_OPTS = {
     "authorization-webhook-config-file": WEBHOOK_CONFIG,
     "authorization-mode": "Node,RBAC,Webhook",
 }
+
+SSL = f"""
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keystone-auth-certs
+  namespace: kube-system
+type: Opaque
+"""
 
 POLICY = f"""
 apiVersion: v1
@@ -177,6 +187,7 @@ def k8s_apply_dict(data: str):
 @click.option("--auth-policy")
 @click.option("--cert", required=True)
 @click.option("--key", required=True)
+@click.option("--keystone-ca")
 @click.option("--username", default="openstackuser")
 @click.option("--skip-config-authorization", default=False)
 def main(
@@ -185,6 +196,7 @@ def main(
     auth_policy: str,
     cert: str,
     key: str,
+    keystone_ca: str,
     username: str,
     skip_config_authorization: bool,
 ):
@@ -199,16 +211,23 @@ def main(
     if not auth_policy:
         click.echo("Creating auth policy ConfigMap...")
         with tempfile.NamedTemporaryFile(mode="w") as temp_file:
-          temp_file.write(POLICY)
-          temp_file.flush()
-          subprocess.run(f"{KUBECTL} apply -f {temp_file.name}".split())
+            temp_file.write(POLICY)
+            temp_file.flush()
+            subprocess.run(f"{KUBECTL} apply -f {temp_file.name}".split())
     else:
         subprocess.run(f"{KUBECTL} apply -f {auth_policy}".split())
 
     click.echo("Storing certificates...")
-    subprocess.run(
-        f"{KUBECTL} -n {NAMESPACE} create secret tls keystone-auth-certs --cert={cert} --key={key}".split()
-    )
+    ssl = yaml.safe_load(SSL)
+    ssl["data"] = {
+        "tls.crt": base64.b64encode(open(cert, "r").read().encode("utf-8")),
+        "tls.key": base64.b64encode(open(key, "r").read().encode("utf-8")),
+    }
+    if keystone_ca:
+        ssl["data"]["ca.crt"] = base64.b64encode(
+            open(keystone_ca, "r").read().encode("utf-8")
+        )
+    k8s_apply_dict(ssl)
 
     click.echo("Creating service account...")
     account = yaml.safe_load(ACCOUNT)
@@ -224,6 +243,10 @@ def main(
 
     click.echo("Deploying keystone-auth...")
     deployment = yaml.safe_load(DEPLOYMENT)
+    if keystone_ca:
+        deployment["spec"]["template"]["spec"]["containers"][0]["env"].append(
+            {"name": "KEYSTONE_CA_FILE", "value": "/etc/pki/ca.crt"}
+        )
     deployment["spec"]["template"]["spec"]["containers"][0]["args"] = [
         "./bin/k8s-keystone-auth",
         "--tls-cert-file",
@@ -317,7 +340,9 @@ def main(
         click.echo(f"Error reading YAML file: {err}")
 
     click.echo("Setting context...")
-    subprocess.run(f"kubectl config set-context --cluster=microk8s --user={username} {username}@microk8s".split())
+    subprocess.run(
+        f"kubectl config set-context --cluster=microk8s --user={username} {username}@microk8s".split()
+    )
 
 
 if __name__ == "__main__":
