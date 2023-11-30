@@ -16,7 +16,7 @@ class TestKeystoneAuth(object):
         print("Enabling k8s-keystone-auth")
         microk8s_enable(
             "k8s-keystone-auth",
-            optional_args="--keystone-url http://keystone.url --cert=path/to/cert --key=path/to/key",
+            optional_args="--keystone-url http://keystone.url --cert=tests/templates/k8s-keystone-auth/tls.crt --key=tests/templates/k8s-keystone-auth/tls.key",
         )
         print("Validating k8s-keystone-auth")
         time.sleep(30)
