@@ -40,28 +40,6 @@ metadata:
 type: Opaque
 """
 
-POLICY = f"""
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: k8s-auth-policy
-  namespace: kube-system
-data:
-  policies: |
-    [
-      {{
-        "users": {{
-          "projects": ["demo"],
-          "roles": ["member"]
-        }},
-        "resource_permissions": {{
-          "*/pods": ["get", "list", "watch"]
-        }}
-      }}
-    ]
-
-"""
-
 ROLE = f"""
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
@@ -189,7 +167,6 @@ def k8s_apply_dict(data: str):
 @click.option("--key", required=True)
 @click.option("--keystone-ca")
 @click.option("--username", default="openstackuser")
-@click.option("--skip-config-authorization", default=False)
 def main(
     rbac_addon: str,
     keystone_url: str,
@@ -198,7 +175,6 @@ def main(
     key: str,
     keystone_ca: str,
     username: str,
-    skip_config_authorization: bool,
 ):
     """
     Enable the k8s-keystone-auth addon.
@@ -208,13 +184,7 @@ def main(
 
     subprocess.run(f"{KUBECTL} create namespace {NAMESPACE}".split())
 
-    if not auth_policy:
-        click.echo("Creating auth policy ConfigMap...")
-        with tempfile.NamedTemporaryFile(mode="w") as temp_file:
-            temp_file.write(POLICY)
-            temp_file.flush()
-            subprocess.run(f"{KUBECTL} apply -f {temp_file.name}".split())
-    else:
+    if auth_policy:
         subprocess.run(f"{KUBECTL} apply -f {auth_policy}".split())
 
     click.echo("Storing certificates...")
@@ -279,7 +249,7 @@ def main(
         yaml.dump(webhook, config)
 
     apiserver_opts = AUTHENTICATION_OPTS
-    if not skip_config_authorization:
+    if auth_policy:
         apiserver_opts.update(AUTHENTICATION_OPTS)
     for key, val in apiserver_opts.items():
         click.echo(f"Setting {key} in kube-apiserver...")
