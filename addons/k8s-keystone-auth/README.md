@@ -14,11 +14,11 @@ The k8s-keystone-auth addon enables integration between Microk8s and Openstack K
 microk8s addons repo add openstack https://github.com/canonical/microk8s-openstack-addons.git
 ```
 
-2. Create auth policy (optional)
+2. Create authorization policy as outlined [here](https://github.com/kubernetes/cloud-provider-openstack/blob/master/docs/keystone-auth/using-keystone-webhook-authenticator-and-authorizer.md#authorization-policy-definitionversion-2)(optional)
 
 3. Enable the addon
 ```bash
-microk8s enable k8s-keystone-auth --auth-policy path/to/policy.yaml --keystone-url <keystone-url> --cert path/to/cert --key path/to/key
+sudo microk8s enable k8s-keystone-auth --auth-policy path/to/policy.yaml --keystone-url <keystone-url> --cert path/to/cert --key path/to/key
 ```
 
 #### CLI Options
@@ -29,3 +29,4 @@ microk8s enable k8s-keystone-auth --auth-policy path/to/policy.yaml --keystone-u
 - **key:** Cert key for use with the keystone-auth service
 - **username:** User to configure client-keystone-auth
 - **skip-config-authorization:** Skip configuring kube-apiserver for authorization
+- **keystone-ca:** Provide CA for authorizing Keystone TLS
